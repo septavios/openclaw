@@ -137,6 +137,17 @@ dependencies {
   // Unicast DNS-SD (Wide-Area Bonjour) for tailnet discovery domains.
   implementation("dnsjava:dnsjava:3.6.4")
 
+  // Markdown (Markwon for LaTeX support)
+  implementation("io.noties.markwon:core:4.6.2")
+  implementation("io.noties.markwon:ext-latex:4.6.2")
+  implementation("io.noties.markwon:image-coil:4.6.2")
+  implementation("io.noties.markwon:linkify:4.6.2")
+  implementation("io.noties.markwon:ext-strikethrough:4.6.2")
+  implementation("io.noties.markwon:ext-tables:4.6.2")
+
+  implementation("io.coil-kt.coil3:coil-compose:3.0.4")
+  implementation("io.coil-kt.coil3:coil-network-okhttp:3.0.4")
+
   testImplementation("junit:junit:4.13.2")
   testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
   testImplementation("io.kotest:kotest-runner-junit5-jvm:6.0.7")
