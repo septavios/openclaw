@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, vi } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
 import { withTempHome as withTempHomeBase } from "../../test/helpers/temp-home.js";
+import type { OpenClawConfig } from "../config/config.js";
+import type { MockFn } from "../test-utils/vitest-mock-fn.js";
 
 export async function withModelsTempHome<T>(fn: (home: string) => Promise<T>): Promise<T> {
   return withTempHomeBase(fn, { prefix: "openclaw-models-" });
@@ -57,7 +58,7 @@ export async function withUnsetCopilotTokenEnv<T>(fn: () => Promise<T>): Promise
   });
 }
 
-export function mockCopilotTokenExchangeSuccess() {
+export function mockCopilotTokenExchangeSuccess(): MockFn {
   const fetchMock = vi.fn().mockResolvedValue({
     ok: true,
     status: 200,
