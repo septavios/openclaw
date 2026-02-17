@@ -40,6 +40,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
   val locationMode: StateFlow<LocationMode> = runtime.locationMode
   val locationPreciseEnabled: StateFlow<Boolean> = runtime.locationPreciseEnabled
   val preventSleep: StateFlow<Boolean> = runtime.preventSleep
+  val themeMode: StateFlow<ThemeMode> = runtime.themeMode
   val wakeWords: StateFlow<List<String>> = runtime.wakeWords
   val voiceWakeMode: StateFlow<VoiceWakeMode> = runtime.voiceWakeMode
   val voiceWakeStatusText: StateFlow<String> = runtime.voiceWakeStatusText
@@ -88,6 +89,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
   fun setPreventSleep(value: Boolean) {
     runtime.setPreventSleep(value)
+  }
+
+  fun setThemeMode(mode: ThemeMode) {
+    runtime.setThemeMode(mode)
   }
 
   fun setManualEnabled(value: Boolean) {

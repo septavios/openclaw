@@ -86,6 +86,8 @@ fun RootScreen(viewModel: MainViewModel) {
   val talkStatusText by viewModel.talkStatusText.collectAsState()
   val talkIsListening by viewModel.talkIsListening.collectAsState()
   val talkIsSpeaking by viewModel.talkIsSpeaking.collectAsState()
+  val chatHealthOk by viewModel.chatHealthOk.collectAsState()
+  val chatError by viewModel.chatError.collectAsState()
   val seamColorArgb by viewModel.seamColorArgb.collectAsState()
   val seamColor = remember(seamColorArgb) { ComposeColor(seamColorArgb) }
   val audioPermissionLauncher =
@@ -93,7 +95,15 @@ fun RootScreen(viewModel: MainViewModel) {
       if (granted) viewModel.setTalkEnabled(true)
     }
   val activity =
-    remember(cameraHud, screenRecordActive, isForeground, statusText, voiceWakeStatusText) {
+    remember(
+      cameraHud,
+      screenRecordActive,
+      isForeground,
+      statusText,
+      voiceWakeStatusText,
+      chatHealthOk,
+      chatError,
+    ) {
       // Status pill owns transient activity state so it doesn't overlap the connection indicator.
       if (!isForeground) {
         return@remember StatusActivity(
@@ -118,7 +128,17 @@ fun RootScreen(viewModel: MainViewModel) {
           contentDescription = "Approval pending",
         )
       }
-      // Avoid duplicating the primary gateway status ("Connecting…") in the activity slot.
+
+      if (!chatHealthOk) {
+        val title =
+          chatError?.take(40)?.ifBlank { null } ?: "Chat issue"
+        return@remember StatusActivity(
+          title = title,
+          icon = Icons.Default.Error,
+          contentDescription = "Chat issue",
+          tint = androidx.compose.ui.graphics.Color.Red,
+        )
+      }
 
       if (screenRecordActive) {
         return@remember StatusActivity(

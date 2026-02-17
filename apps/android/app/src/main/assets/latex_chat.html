@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']],
+                processEscapes: true
+            },
+            svg: {
+                fontCache: 'global'
+            }
+        };
+    </script>
+    <script id="MathJax-script" async src="libs/tex-mml-svg.js"></script>
+    <script src="libs/marked.min.js"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 0;
+            padding: 8px;
+            color: var(--text-color, #000000);
+            background-color: transparent;
+            font-size: 16px;
+            line-height: 1.5;
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+        }
+        pre {
+            background-color: #f4f4f4;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        code {
+            font-family: monospace;
+            background-color: rgba(0, 0, 0, 0.05);
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+        pre code {
+            background-color: transparent;
+            padding: 0;
+        }
+        blockquote {
+            border-left: 4px solid #ccc;
+            margin: 0;
+            padding-left: 16px;
+            color: #666;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+        }
+        th {
+            padding-top: 12px;
+            padding-bottom: 12px;
+            text-align: left;
+            background-color: rgba(0, 0, 0, 0.05);
+        }
+        /* Dark mode overrides */
+        @media (prefers-color-scheme: dark) {
+            body {
+                color: #ffffff;
+            }
+            pre {
+                background-color: #333;
+            }
+            code {
+                background-color: rgba(255, 255, 255, 0.1);
+            }
+            blockquote {
+                border-left-color: #555;
+                color: #aaa;
+            }
+            th {
+                background-color: rgba(255, 255, 255, 0.1);
+            }
+            th, td {
+                border-color: #444;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="content"></div>
+    <script>
+        function renderMarkdown(markdown, isDarkMode, textColorHex) {
+            // Set theme class
+            if (isDarkMode) {
+                document.body.classList.add('dark');
+            } else {
+                document.body.classList.remove('dark');
+            }
+            
+            // Explicitly set text color if provided
+            if (textColorHex) {
+                document.body.style.color = textColorHex;
+                document.body.style.setProperty('--text-color', textColorHex);
+            }
+
+            try {
+                if (typeof marked === 'undefined') {
+                    throw new Error('Marked library not loaded');
+                }
+                // Render Markdown
+                document.getElementById('content').innerHTML = marked.parse(markdown);
+            } catch (e) {
+                document.getElementById('content').innerText = markdown;
+                console.error("Markdown rendering failed:", e);
+            }
+
+            // Render MathJax
+            if (window.MathJax && window.MathJax.typesetPromise) {
+                window.MathJax.typesetPromise().then(() => {
+                    updateHeight();
+                });
+            } else {
+                updateHeight();
+            }
+        }
+
+        function updateHeight() {
+            if (window.Android) {
+                window.Android.resize(document.body.scrollHeight);
+            }
+        }
+
+        // Monitor resize
+        const resizeObserver = new ResizeObserver(entries => {
+            updateHeight();
+        });
+        resizeObserver.observe(document.body);
+    </script>
+</body>
+</html>

@@ -20,6 +20,7 @@ class SecurePrefs(context: Context) {
     val defaultWakeWords: List<String> = listOf("openclaw", "claude")
     private const val displayNameKey = "node.displayName"
     private const val voiceWakeModeKey = "voiceWake.mode"
+    private const val themeModeKey = "ui.themeMode"
   }
 
   private val appContext = context.applicationContext
@@ -54,6 +55,9 @@ class SecurePrefs(context: Context) {
 
   private val _preventSleep = MutableStateFlow(prefs.getBoolean("screen.preventSleep", true))
   val preventSleep: StateFlow<Boolean> = _preventSleep
+
+  private val _themeMode = MutableStateFlow(loadThemeMode())
+  val themeMode: StateFlow<ThemeMode> = _themeMode
 
   private val _manualEnabled =
     MutableStateFlow(prefs.getBoolean("gateway.manual.enabled", false))
@@ -124,6 +128,11 @@ class SecurePrefs(context: Context) {
   fun setPreventSleep(value: Boolean) {
     prefs.edit { putBoolean("screen.preventSleep", value) }
     _preventSleep.value = value
+  }
+
+  fun setThemeMode(mode: ThemeMode) {
+    prefs.edit { putString(themeModeKey, mode.rawValue) }
+    _themeMode.value = mode
   }
 
   fun setManualEnabled(value: Boolean) {
@@ -261,6 +270,16 @@ class SecurePrefs(context: Context) {
 
     return resolved
   }
+
+  private fun loadThemeMode(): ThemeMode {
+    val raw = prefs.getString(themeModeKey, null)
+    val resolved = ThemeMode.fromRawValue(raw)
+    if (raw.isNullOrBlank()) {
+      prefs.edit { putString(themeModeKey, resolved.rawValue) }
+    }
+    return resolved
+  }
+
 
   private fun loadWakeWords(): List<String> {
     val raw = prefs.getString("voiceWake.triggerWords", null)?.trim()

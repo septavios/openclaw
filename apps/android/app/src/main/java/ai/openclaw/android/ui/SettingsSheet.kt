@@ -1,5 +1,12 @@
 package ai.openclaw.android.ui
 
+import ai.openclaw.android.BuildConfig
+import ai.openclaw.android.LocationMode
+import ai.openclaw.android.MainViewModel
+import ai.openclaw.android.NodeForegroundService
+import ai.openclaw.android.ThemeMode
+import ai.openclaw.android.VoiceWakeMode
+import ai.openclaw.android.WakeWords
 import android.Manifest
 import android.content.Context
 import android.content.Intent
@@ -14,7 +21,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -33,8 +39,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material3.Button
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
@@ -60,12 +66,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import ai.openclaw.android.BuildConfig
-import ai.openclaw.android.LocationMode
-import ai.openclaw.android.MainViewModel
-import ai.openclaw.android.NodeForegroundService
-import ai.openclaw.android.VoiceWakeMode
-import ai.openclaw.android.WakeWords
 
 @Composable
 fun SettingsSheet(viewModel: MainViewModel) {
@@ -76,10 +76,13 @@ fun SettingsSheet(viewModel: MainViewModel) {
   val locationMode by viewModel.locationMode.collectAsState()
   val locationPreciseEnabled by viewModel.locationPreciseEnabled.collectAsState()
   val preventSleep by viewModel.preventSleep.collectAsState()
+  val themeMode by viewModel.themeMode.collectAsState()
   val wakeWords by viewModel.wakeWords.collectAsState()
   val voiceWakeMode by viewModel.voiceWakeMode.collectAsState()
   val voiceWakeStatusText by viewModel.voiceWakeStatusText.collectAsState()
+  val voiceWakeIsListening by viewModel.voiceWakeIsListening.collectAsState()
   val isConnected by viewModel.isConnected.collectAsState()
+  val isForeground by viewModel.isForeground.collectAsState()
   val manualEnabled by viewModel.manualEnabled.collectAsState()
   val manualHost by viewModel.manualHost.collectAsState()
   val manualPort by viewModel.manualPort.collectAsState()
@@ -92,51 +95,49 @@ fun SettingsSheet(viewModel: MainViewModel) {
   val gateways by viewModel.gateways.collectAsState()
   val discoveryStatusText by viewModel.discoveryStatusText.collectAsState()
   val pendingTrust by viewModel.pendingGatewayTrust.collectAsState()
+  val chatHealthOk by viewModel.chatHealthOk.collectAsState()
+  val chatError by viewModel.chatError.collectAsState()
+  val talkEnabled by viewModel.talkEnabled.collectAsState()
+  val talkStatusText by viewModel.talkStatusText.collectAsState()
+  val screenRecordActive by viewModel.screenRecordActive.collectAsState()
 
   val listState = rememberLazyListState()
   val (wakeWordsText, setWakeWordsText) = remember { mutableStateOf("") }
   val (advancedExpanded, setAdvancedExpanded) = remember { mutableStateOf(false) }
   val focusManager = LocalFocusManager.current
   var wakeWordsHadFocus by remember { mutableStateOf(false) }
-  val deviceModel =
-    remember {
-      listOfNotNull(Build.MANUFACTURER, Build.MODEL)
-        .joinToString(" ")
-        .trim()
-        .ifEmpty { "Android" }
+  val deviceModel = remember {
+    listOfNotNull(Build.MANUFACTURER, Build.MODEL).joinToString(" ").trim().ifEmpty { "Android" }
+  }
+  val appVersion = remember {
+    val versionName = BuildConfig.VERSION_NAME.trim().ifEmpty { "dev" }
+    if (BuildConfig.DEBUG && !versionName.contains("dev", ignoreCase = true)) {
+      "$versionName-dev"
+    } else {
+      versionName
     }
-  val appVersion =
-    remember {
-      val versionName = BuildConfig.VERSION_NAME.trim().ifEmpty { "dev" }
-      if (BuildConfig.DEBUG && !versionName.contains("dev", ignoreCase = true)) {
-        "$versionName-dev"
-      } else {
-        versionName
-      }
-    }
+  }
 
   if (pendingTrust != null) {
     val prompt = pendingTrust!!
     AlertDialog(
-      onDismissRequest = { viewModel.declineGatewayTrustPrompt() },
-      title = { Text("Trust this gateway?") },
-      text = {
-        Text(
-          "First-time TLS connection.\n\n" +
-            "Verify this SHA-256 fingerprint out-of-band before trusting:\n" +
-            prompt.fingerprintSha256,
-        )
-      },
-      confirmButton = {
-        TextButton(onClick = { viewModel.acceptGatewayTrustPrompt() }) {
-          Text("Trust and connect")
-        }
-      },
-      dismissButton = {
-        TextButton(onClick = { viewModel.declineGatewayTrustPrompt() }) {
-          Text("Cancel")
-        }
-      },
+            onDismissRequest = { viewModel.declineGatewayTrustPrompt() },
+            title = { Text("Trust this gateway?") },
+            text = {
+              Text(
+                      "First-time TLS connection.\n\n" +
+                              "Verify this SHA-256 fingerprint out-of-band before trusting:\n" +
+                              prompt.fingerprintSha256,
+              )
+            },
+            confirmButton = {
+              TextButton(onClick = { viewModel.acceptGatewayTrustPrompt() }) {
+                Text("Trust and connect")
+              }
+            },
+            dismissButton = {
+              TextButton(onClick = { viewModel.declineGatewayTrustPrompt() }) { Text("Cancel") }
+            },
     )
   }
 
@@ -149,67 +150,70 @@ fun SettingsSheet(viewModel: MainViewModel) {
   }
 
   val permissionLauncher =
-    rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { perms ->
-      val cameraOk = perms[Manifest.permission.CAMERA] == true
-      viewModel.setCameraEnabled(cameraOk)
-    }
+          rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+                  perms ->
+            val cameraOk = perms[Manifest.permission.CAMERA] == true
+            viewModel.setCameraEnabled(cameraOk)
+          }
 
   var pendingLocationMode by remember { mutableStateOf<LocationMode?>(null) }
   var pendingPreciseToggle by remember { mutableStateOf(false) }
 
   val locationPermissionLauncher =
-    rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { perms ->
-      val fineOk = perms[Manifest.permission.ACCESS_FINE_LOCATION] == true
-      val coarseOk = perms[Manifest.permission.ACCESS_COARSE_LOCATION] == true
-      val granted = fineOk || coarseOk
-      val requestedMode = pendingLocationMode
-      pendingLocationMode = null
+          rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+                  perms ->
+            val fineOk = perms[Manifest.permission.ACCESS_FINE_LOCATION] == true
+            val coarseOk = perms[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+            val granted = fineOk || coarseOk
+            val requestedMode = pendingLocationMode
+            pendingLocationMode = null
 
-      if (pendingPreciseToggle) {
-        pendingPreciseToggle = false
-        viewModel.setLocationPreciseEnabled(fineOk)
-        return@rememberLauncherForActivityResult
-      }
+            if (pendingPreciseToggle) {
+              pendingPreciseToggle = false
+              viewModel.setLocationPreciseEnabled(fineOk)
+              return@rememberLauncherForActivityResult
+            }
 
-      if (!granted) {
-        viewModel.setLocationMode(LocationMode.Off)
-        return@rememberLauncherForActivityResult
-      }
+            if (!granted) {
+              viewModel.setLocationMode(LocationMode.Off)
+              return@rememberLauncherForActivityResult
+            }
 
-      if (requestedMode != null) {
-        viewModel.setLocationMode(requestedMode)
-        if (requestedMode == LocationMode.Always) {
-          val backgroundOk =
-            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_BACKGROUND_LOCATION) ==
-              PackageManager.PERMISSION_GRANTED
-          if (!backgroundOk) {
-            openAppSettings(context)
+            if (requestedMode != null) {
+              viewModel.setLocationMode(requestedMode)
+              if (requestedMode == LocationMode.Always) {
+                val backgroundOk =
+                        ContextCompat.checkSelfPermission(
+                                context,
+                                Manifest.permission.ACCESS_BACKGROUND_LOCATION
+                        ) == PackageManager.PERMISSION_GRANTED
+                if (!backgroundOk) {
+                  openAppSettings(context)
+                }
+              }
+            }
           }
-        }
-      }
-    }
 
   val audioPermissionLauncher =
-    rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { _ ->
-      // Status text is handled by NodeRuntime.
-    }
+          rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { _ ->
+            // Status text is handled by NodeRuntime.
+          }
 
-  val smsPermissionAvailable =
-    remember {
-      context.packageManager?.hasSystemFeature(PackageManager.FEATURE_TELEPHONY) == true
-    }
-  var smsPermissionGranted by
-    remember {
-      mutableStateOf(
-        ContextCompat.checkSelfPermission(context, Manifest.permission.SEND_SMS) ==
-          PackageManager.PERMISSION_GRANTED,
-      )
-    }
+  val smsPermissionAvailable = remember {
+    context.packageManager?.hasSystemFeature(PackageManager.FEATURE_TELEPHONY) == true
+  }
+  var smsPermissionGranted by remember {
+    mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.SEND_SMS) ==
+                    PackageManager.PERMISSION_GRANTED,
+    )
+  }
   val smsPermissionLauncher =
-    rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-      smsPermissionGranted = granted
-      viewModel.refreshGatewayConnection()
-    }
+          rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted
+            ->
+            smsPermissionGranted = granted
+            viewModel.refreshGatewayConnection()
+          }
 
   fun setCameraEnabledChecked(checked: Boolean) {
     if (!checked) {
@@ -218,28 +222,34 @@ fun SettingsSheet(viewModel: MainViewModel) {
     }
 
     val cameraOk =
-      ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
-        PackageManager.PERMISSION_GRANTED
+            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+                    PackageManager.PERMISSION_GRANTED
     if (cameraOk) {
       viewModel.setCameraEnabled(true)
     } else {
-      permissionLauncher.launch(arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO))
+      permissionLauncher.launch(
+              arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
+      )
     }
   }
 
   fun requestLocationPermissions(targetMode: LocationMode) {
     val fineOk =
-      ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
-        PackageManager.PERMISSION_GRANTED
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
+                    PackageManager.PERMISSION_GRANTED
     val coarseOk =
-      ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
-        PackageManager.PERMISSION_GRANTED
+            ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
     if (fineOk || coarseOk) {
       viewModel.setLocationMode(targetMode)
       if (targetMode == LocationMode.Always) {
         val backgroundOk =
-          ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_BACKGROUND_LOCATION) ==
-            PackageManager.PERMISSION_GRANTED
+                ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.ACCESS_BACKGROUND_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
         if (!backgroundOk) {
           openAppSettings(context)
         }
@@ -247,7 +257,10 @@ fun SettingsSheet(viewModel: MainViewModel) {
     } else {
       pendingLocationMode = targetMode
       locationPermissionLauncher.launch(
-        arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+              arrayOf(
+                      Manifest.permission.ACCESS_FINE_LOCATION,
+                      Manifest.permission.ACCESS_COARSE_LOCATION
+              ),
       )
     }
   }
@@ -258,8 +271,8 @@ fun SettingsSheet(viewModel: MainViewModel) {
       return
     }
     val fineOk =
-      ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
-        PackageManager.PERMISSION_GRANTED
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
+                    PackageManager.PERMISSION_GRANTED
     if (fineOk) {
       viewModel.setLocationPreciseEnabled(true)
     } else {
@@ -269,40 +282,41 @@ fun SettingsSheet(viewModel: MainViewModel) {
   }
 
   val visibleGateways =
-    if (isConnected && remoteAddress != null) {
-      gateways.filterNot { "${it.host}:${it.port}" == remoteAddress }
-    } else {
-      gateways
-    }
+          if (isConnected && remoteAddress != null) {
+            gateways.filterNot { "${it.host}:${it.port}" == remoteAddress }
+          } else {
+            gateways
+          }
 
   val gatewayDiscoveryFooterText =
-    if (visibleGateways.isEmpty()) {
-      discoveryStatusText
-    } else if (isConnected) {
-      "Discovery active • ${visibleGateways.size} other gateway${if (visibleGateways.size == 1) "" else "s"} found"
-    } else {
-      "Discovery active • ${visibleGateways.size} gateway${if (visibleGateways.size == 1) "" else "s"} found"
-    }
+          if (visibleGateways.isEmpty()) {
+            discoveryStatusText
+          } else if (isConnected) {
+            "Discovery active • ${visibleGateways.size} other gateway${if (visibleGateways.size == 1) "" else "s"} found"
+          } else {
+            "Discovery active • ${visibleGateways.size} gateway${if (visibleGateways.size == 1) "" else "s"} found"
+          }
 
   LazyColumn(
-    state = listState,
-    modifier =
-      Modifier
-        .fillMaxWidth()
-        .fillMaxHeight()
-        .imePadding()
-        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)),
-    contentPadding = PaddingValues(16.dp),
-    verticalArrangement = Arrangement.spacedBy(6.dp),
+          state = listState,
+          modifier =
+                  Modifier.fillMaxWidth()
+                          .fillMaxHeight()
+                          .imePadding()
+                          .windowInsetsPadding(
+                                  WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)
+                          ),
+          contentPadding = PaddingValues(16.dp),
+          verticalArrangement = Arrangement.spacedBy(6.dp),
   ) {
     // Order parity: Node → Gateway → Voice → Camera → Messaging → Location → Screen.
     item { Text("Node", style = MaterialTheme.typography.titleSmall) }
     item {
       OutlinedTextField(
-        value = displayName,
-        onValueChange = viewModel::setDisplayName,
-        label = { Text("Name") },
-        modifier = Modifier.fillMaxWidth(),
+              value = displayName,
+              onValueChange = viewModel::setDisplayName,
+              label = { Text("Name") },
+              modifier = Modifier.fillMaxWidth(),
       )
     }
     item { Text("Instance ID: $instanceId", color = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -313,25 +327,128 @@ fun SettingsSheet(viewModel: MainViewModel) {
 
     // Gateway
     item { Text("Gateway", style = MaterialTheme.typography.titleSmall) }
-    item { ListItem(headlineContent = { Text("Status") }, supportingContent = { Text(statusText) }) }
+    item {
+      ListItem(headlineContent = { Text("Status") }, supportingContent = { Text(statusText) })
+    }
     if (serverName != null) {
-      item { ListItem(headlineContent = { Text("Server") }, supportingContent = { Text(serverName!!) }) }
+      item {
+        ListItem(headlineContent = { Text("Server") }, supportingContent = { Text(serverName!!) })
+      }
     }
     if (remoteAddress != null) {
-      item { ListItem(headlineContent = { Text("Address") }, supportingContent = { Text(remoteAddress!!) }) }
+      item {
+        ListItem(
+                headlineContent = { Text("Address") },
+                supportingContent = { Text(remoteAddress!!) }
+        )
+      }
     }
     item {
-      // UI sanity: "Disconnect" only when we have an active remote.
       if (isConnected && remoteAddress != null) {
         Button(
-          onClick = {
-            viewModel.disconnect()
-            NodeForegroundService.stop(context)
-          },
-        ) {
-          Text("Disconnect")
-        }
+                onClick = {
+                  viewModel.disconnect()
+                  NodeForegroundService.stop(context)
+                },
+        ) { Text("Disconnect") }
       }
+    }
+
+    item { HorizontalDivider() }
+
+    item { Text("Health", style = MaterialTheme.typography.titleSmall) }
+    item {
+      ListItem(
+              headlineContent = { Text("Gateway") },
+              supportingContent = {
+                val text =
+                        if (isConnected && (serverName != null || remoteAddress != null)) {
+                          val label = serverName ?: remoteAddress
+                          if (serverName != null && remoteAddress != null) {
+                            "Connected to $serverName ($remoteAddress)"
+                          } else {
+                            "Connected to $label"
+                          }
+                        } else {
+                          statusText
+                        }
+                Text(text, color = MaterialTheme.colorScheme.onSurfaceVariant)
+              },
+      )
+    }
+    item {
+      ListItem(
+              headlineContent = { Text("Chat") },
+              supportingContent = {
+                val text =
+                        if (chatHealthOk) {
+                          "Healthy"
+                        } else {
+                          chatError?.ifBlank { "Issue detected" } ?: "Issue detected"
+                        }
+                Text(text, color = MaterialTheme.colorScheme.onSurfaceVariant)
+              },
+      )
+    }
+    item {
+      ListItem(
+              headlineContent = { Text("Voice and Talk") },
+              supportingContent = {
+                val voiceLabel =
+                        when (voiceWakeMode) {
+                          VoiceWakeMode.Off -> "Voice Wake: Off"
+                          VoiceWakeMode.Foreground -> "Voice Wake: Foreground"
+                          VoiceWakeMode.Always -> "Voice Wake: Always"
+                        }
+                val listenLabel = if (voiceWakeIsListening) "listening" else "idle"
+                val talkLabel = if (talkEnabled) "Talk: ${talkStatusText}" else "Talk: Disabled"
+                Text(
+                        "$voiceLabel ($listenLabel) • $talkLabel",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+              },
+      )
+    }
+    item {
+      ListItem(
+              headlineContent = { Text("Sensors") },
+              supportingContent = {
+                val cameraLabel = if (cameraEnabled) "Camera: Allowed" else "Camera: Disabled"
+                val locationLabel =
+                        when (locationMode) {
+                          LocationMode.Off -> "Location: Off"
+                          LocationMode.WhileUsing -> "Location: While using"
+                          LocationMode.Always -> "Location: Always"
+                        }
+                val preciseLabel = if (locationPreciseEnabled) "Precise" else "Approximate"
+                Text(
+                        "$cameraLabel • $locationLabel ($preciseLabel)",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+              },
+      )
+    }
+    item {
+      ListItem(
+              headlineContent = { Text("Screen") },
+              supportingContent = {
+                val recLabel = if (screenRecordActive) "Recording: Active" else "Recording: Idle"
+                val sleepLabel = if (preventSleep) "Prevent sleep: On" else "Prevent sleep: Off"
+                Text(
+                        "$recLabel • $sleepLabel",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+              },
+      )
+    }
+    item {
+      ListItem(
+              headlineContent = { Text("Node") },
+              supportingContent = {
+                val fgLabel = if (isForeground) "Foreground" else "Background"
+                Text("App state: $fgLabel", color = MaterialTheme.colorScheme.onSurfaceVariant)
+              },
+      )
     }
 
     item { HorizontalDivider() }
@@ -339,54 +456,51 @@ fun SettingsSheet(viewModel: MainViewModel) {
     if (!isConnected || visibleGateways.isNotEmpty()) {
       item {
         Text(
-          if (isConnected) "Other Gateways" else "Discovered Gateways",
-          style = MaterialTheme.typography.titleSmall,
+                if (isConnected) "Other Gateways" else "Discovered Gateways",
+                style = MaterialTheme.typography.titleSmall,
         )
       }
       if (!isConnected && visibleGateways.isEmpty()) {
         item { Text("No gateways found yet.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
       } else {
         items(items = visibleGateways, key = { it.stableId }) { gateway ->
-          val detailLines =
-            buildList {
-              add("IP: ${gateway.host}:${gateway.port}")
-              gateway.lanHost?.let { add("LAN: $it") }
-              gateway.tailnetDns?.let { add("Tailnet: $it") }
-              if (gateway.gatewayPort != null || gateway.canvasPort != null) {
-                val gw = (gateway.gatewayPort ?: gateway.port).toString()
-                val canvas = gateway.canvasPort?.toString() ?: "—"
-                add("Ports: gw $gw · canvas $canvas")
-              }
+          val detailLines = buildList {
+            add("IP: ${gateway.host}:${gateway.port}")
+            gateway.lanHost?.let { add("LAN: $it") }
+            gateway.tailnetDns?.let { add("Tailnet: $it") }
+            if (gateway.gatewayPort != null || gateway.canvasPort != null) {
+              val gw = (gateway.gatewayPort ?: gateway.port).toString()
+              val canvas = gateway.canvasPort?.toString() ?: "—"
+              add("Ports: gw $gw · canvas $canvas")
             }
+          }
           ListItem(
-            headlineContent = { Text(gateway.name) },
-            supportingContent = {
-              Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                detailLines.forEach { line ->
-                  Text(line, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-              }
-            },
-            trailingContent = {
-              Button(
-                onClick = {
-                  NodeForegroundService.start(context)
-                  viewModel.connect(gateway)
-                },
-              ) {
-                Text("Connect")
-              }
-            },
+                  headlineContent = { Text(gateway.name) },
+                  supportingContent = {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                      detailLines.forEach { line ->
+                        Text(line, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                      }
+                    }
+                  },
+                  trailingContent = {
+                    Button(
+                            onClick = {
+                              NodeForegroundService.start(context)
+                              viewModel.connect(gateway)
+                            },
+                    ) { Text("Connect") }
+                  },
           )
         }
       }
       item {
         Text(
-          gatewayDiscoveryFooterText,
-          modifier = Modifier.fillMaxWidth(),
-          textAlign = TextAlign.Center,
-          style = MaterialTheme.typography.labelMedium,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
+                gatewayDiscoveryFooterText,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
       }
     }
@@ -395,69 +509,77 @@ fun SettingsSheet(viewModel: MainViewModel) {
 
     item {
       ListItem(
-        headlineContent = { Text("Advanced") },
-        supportingContent = { Text("Manual gateway connection") },
-        trailingContent = {
-          Icon(
-            imageVector = if (advancedExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-            contentDescription = if (advancedExpanded) "Collapse" else "Expand",
-          )
-        },
-        modifier =
-          Modifier.clickable {
-            setAdvancedExpanded(!advancedExpanded)
-          },
+              headlineContent = { Text("Advanced") },
+              supportingContent = { Text("Manual gateway connection") },
+              trailingContent = {
+                Icon(
+                        imageVector =
+                                if (advancedExpanded) Icons.Filled.ExpandLess
+                                else Icons.Filled.ExpandMore,
+                        contentDescription = if (advancedExpanded) "Collapse" else "Expand",
+                )
+              },
+              modifier = Modifier.clickable { setAdvancedExpanded(!advancedExpanded) },
       )
     }
     item {
       AnimatedVisibility(visible = advancedExpanded) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.fillMaxWidth()
+        ) {
           ListItem(
-            headlineContent = { Text("Use Manual Gateway") },
-            supportingContent = { Text("Use this when discovery is blocked.") },
-            trailingContent = { Switch(checked = manualEnabled, onCheckedChange = viewModel::setManualEnabled) },
+                  headlineContent = { Text("Use Manual Gateway") },
+                  supportingContent = { Text("Use this when discovery is blocked.") },
+                  trailingContent = {
+                    Switch(checked = manualEnabled, onCheckedChange = viewModel::setManualEnabled)
+                  },
           )
 
           OutlinedTextField(
-            value = manualHost,
-            onValueChange = viewModel::setManualHost,
-            label = { Text("Host") },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = manualEnabled,
+                  value = manualHost,
+                  onValueChange = viewModel::setManualHost,
+                  label = { Text("Host") },
+                  modifier = Modifier.fillMaxWidth(),
+                  enabled = manualEnabled,
           )
           OutlinedTextField(
-            value = manualPort.toString(),
-            onValueChange = { v -> viewModel.setManualPort(v.toIntOrNull() ?: 0) },
-            label = { Text("Port") },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = manualEnabled,
+                  value = manualPort.toString(),
+                  onValueChange = { v -> viewModel.setManualPort(v.toIntOrNull() ?: 0) },
+                  label = { Text("Port") },
+                  modifier = Modifier.fillMaxWidth(),
+                  enabled = manualEnabled,
           )
           OutlinedTextField(
-            value = gatewayToken,
-            onValueChange = viewModel::setGatewayToken,
-            label = { Text("Gateway Token") },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = manualEnabled,
-            singleLine = true,
+                  value = gatewayToken,
+                  onValueChange = viewModel::setGatewayToken,
+                  label = { Text("Gateway Token") },
+                  modifier = Modifier.fillMaxWidth(),
+                  enabled = manualEnabled,
+                  singleLine = true,
           )
           ListItem(
-            headlineContent = { Text("Require TLS") },
-            supportingContent = { Text("Pin the gateway certificate on first connect.") },
-            trailingContent = { Switch(checked = manualTls, onCheckedChange = viewModel::setManualTls, enabled = manualEnabled) },
-            modifier = Modifier.alpha(if (manualEnabled) 1f else 0.5f),
+                  headlineContent = { Text("Require TLS") },
+                  supportingContent = { Text("Pin the gateway certificate on first connect.") },
+                  trailingContent = {
+                    Switch(
+                            checked = manualTls,
+                            onCheckedChange = viewModel::setManualTls,
+                            enabled = manualEnabled
+                    )
+                  },
+                  modifier = Modifier.alpha(if (manualEnabled) 1f else 0.5f),
           )
 
           val hostOk = manualHost.trim().isNotEmpty()
           val portOk = manualPort in 1..65535
           Button(
-            onClick = {
-              NodeForegroundService.start(context)
-              viewModel.connectManual()
-            },
-            enabled = manualEnabled && hostOk && portOk,
-          ) {
-            Text("Connect (Manual)")
-          }
+                  onClick = {
+                    NodeForegroundService.start(context)
+                    viewModel.connectManual()
+                  },
+                  enabled = manualEnabled && hostOk && portOk,
+          ) { Text("Connect (Manual)") }
         }
       }
     }
@@ -469,98 +591,116 @@ fun SettingsSheet(viewModel: MainViewModel) {
     item {
       val enabled = voiceWakeMode != VoiceWakeMode.Off
       ListItem(
-        headlineContent = { Text("Voice Wake") },
-        supportingContent = { Text(voiceWakeStatusText) },
-        trailingContent = {
-          Switch(
-            checked = enabled,
-            onCheckedChange = { on ->
-              if (on) {
-                val micOk =
-                  ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
-                    PackageManager.PERMISSION_GRANTED
-                if (!micOk) audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                viewModel.setVoiceWakeMode(VoiceWakeMode.Foreground)
-              } else {
-                viewModel.setVoiceWakeMode(VoiceWakeMode.Off)
-              }
-            },
-          )
-        },
+              headlineContent = { Text("Voice Wake") },
+              supportingContent = { Text(voiceWakeStatusText) },
+              trailingContent = {
+                Switch(
+                        checked = enabled,
+                        onCheckedChange = { on ->
+                          if (on) {
+                            val micOk =
+                                    ContextCompat.checkSelfPermission(
+                                            context,
+                                            Manifest.permission.RECORD_AUDIO
+                                    ) == PackageManager.PERMISSION_GRANTED
+                            if (!micOk)
+                                    audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                            viewModel.setVoiceWakeMode(VoiceWakeMode.Foreground)
+                          } else {
+                            viewModel.setVoiceWakeMode(VoiceWakeMode.Off)
+                          }
+                        },
+                )
+              },
       )
     }
     item {
       AnimatedVisibility(visible = voiceWakeMode != VoiceWakeMode.Off) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.fillMaxWidth()
+        ) {
           ListItem(
-            headlineContent = { Text("Foreground Only") },
-            supportingContent = { Text("Listens only while OpenClaw is open.") },
-            trailingContent = {
-              RadioButton(
-                selected = voiceWakeMode == VoiceWakeMode.Foreground,
-                onClick = {
-                  val micOk =
-                    ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
-                      PackageManager.PERMISSION_GRANTED
-                  if (!micOk) audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                  viewModel.setVoiceWakeMode(VoiceWakeMode.Foreground)
-                },
-              )
-            },
+                  headlineContent = { Text("Foreground Only") },
+                  supportingContent = { Text("Listens only while OpenClaw is open.") },
+                  trailingContent = {
+                    RadioButton(
+                            selected = voiceWakeMode == VoiceWakeMode.Foreground,
+                            onClick = {
+                              val micOk =
+                                      ContextCompat.checkSelfPermission(
+                                              context,
+                                              Manifest.permission.RECORD_AUDIO
+                                      ) == PackageManager.PERMISSION_GRANTED
+                              if (!micOk)
+                                      audioPermissionLauncher.launch(
+                                              Manifest.permission.RECORD_AUDIO
+                                      )
+                              viewModel.setVoiceWakeMode(VoiceWakeMode.Foreground)
+                            },
+                    )
+                  },
           )
           ListItem(
-            headlineContent = { Text("Always") },
-            supportingContent = { Text("Keeps listening in the background (shows a persistent notification).") },
-            trailingContent = {
-              RadioButton(
-                selected = voiceWakeMode == VoiceWakeMode.Always,
-                onClick = {
-                  val micOk =
-                    ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
-                      PackageManager.PERMISSION_GRANTED
-                  if (!micOk) audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                  viewModel.setVoiceWakeMode(VoiceWakeMode.Always)
-                },
-              )
-            },
+                  headlineContent = { Text("Always") },
+                  supportingContent = {
+                    Text("Keeps listening in the background (shows a persistent notification).")
+                  },
+                  trailingContent = {
+                    RadioButton(
+                            selected = voiceWakeMode == VoiceWakeMode.Always,
+                            onClick = {
+                              val micOk =
+                                      ContextCompat.checkSelfPermission(
+                                              context,
+                                              Manifest.permission.RECORD_AUDIO
+                                      ) == PackageManager.PERMISSION_GRANTED
+                              if (!micOk)
+                                      audioPermissionLauncher.launch(
+                                              Manifest.permission.RECORD_AUDIO
+                                      )
+                              viewModel.setVoiceWakeMode(VoiceWakeMode.Always)
+                            },
+                    )
+                  },
           )
         }
       }
     }
     item {
       OutlinedTextField(
-        value = wakeWordsText,
-        onValueChange = setWakeWordsText,
-        label = { Text("Wake Words (comma-separated)") },
-        modifier =
-          Modifier.fillMaxWidth().onFocusChanged { focusState ->
-            if (focusState.isFocused) {
-              wakeWordsHadFocus = true
-            } else if (wakeWordsHadFocus) {
-              wakeWordsHadFocus = false
-              commitWakeWords()
-            }
-          },
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-        keyboardActions =
-          KeyboardActions(
-            onDone = {
-              commitWakeWords()
-              focusManager.clearFocus()
-            },
-          ),
+              value = wakeWordsText,
+              onValueChange = setWakeWordsText,
+              label = { Text("Wake Words (comma-separated)") },
+              modifier =
+                      Modifier.fillMaxWidth().onFocusChanged { focusState ->
+                        if (focusState.isFocused) {
+                          wakeWordsHadFocus = true
+                        } else if (wakeWordsHadFocus) {
+                          wakeWordsHadFocus = false
+                          commitWakeWords()
+                        }
+                      },
+              singleLine = true,
+              keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+              keyboardActions =
+                      KeyboardActions(
+                              onDone = {
+                                commitWakeWords()
+                                focusManager.clearFocus()
+                              },
+                      ),
       )
     }
     item { Button(onClick = viewModel::resetWakeWordsDefaults) { Text("Reset defaults") } }
     item {
       Text(
-        if (isConnected) {
-          "Any node can edit wake words. Changes sync via the gateway."
-        } else {
-          "Connect to a gateway to sync wake words globally."
-        },
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+              if (isConnected) {
+                "Any node can edit wake words. Changes sync via the gateway."
+              } else {
+                "Connect to a gateway to sync wake words globally."
+              },
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
     }
 
@@ -570,15 +710,19 @@ fun SettingsSheet(viewModel: MainViewModel) {
     item { Text("Camera", style = MaterialTheme.typography.titleSmall) }
     item {
       ListItem(
-        headlineContent = { Text("Allow Camera") },
-        supportingContent = { Text("Allows the gateway to request photos or short video clips (foreground only).") },
-        trailingContent = { Switch(checked = cameraEnabled, onCheckedChange = ::setCameraEnabledChecked) },
+              headlineContent = { Text("Allow Camera") },
+              supportingContent = {
+                Text("Allows the gateway to request photos or short video clips (foreground only).")
+              },
+              trailingContent = {
+                Switch(checked = cameraEnabled, onCheckedChange = ::setCameraEnabledChecked)
+              },
       )
     }
     item {
       Text(
-        "Tip: grant Microphone permission for video clips with audio.",
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+              "Tip: grant Microphone permission for video clips with audio.",
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
     }
 
@@ -588,37 +732,35 @@ fun SettingsSheet(viewModel: MainViewModel) {
     item { Text("Messaging", style = MaterialTheme.typography.titleSmall) }
     item {
       val buttonLabel =
-        when {
-          !smsPermissionAvailable -> "Unavailable"
-          smsPermissionGranted -> "Manage"
-          else -> "Grant"
-        }
-      ListItem(
-        headlineContent = { Text("SMS Permission") },
-        supportingContent = {
-          Text(
-            if (smsPermissionAvailable) {
-              "Allow the gateway to send SMS from this device."
-            } else {
-              "SMS requires a device with telephony hardware."
-            },
-          )
-        },
-        trailingContent = {
-          Button(
-            onClick = {
-              if (!smsPermissionAvailable) return@Button
-              if (smsPermissionGranted) {
-                openAppSettings(context)
-              } else {
-                smsPermissionLauncher.launch(Manifest.permission.SEND_SMS)
+              when {
+                !smsPermissionAvailable -> "Unavailable"
+                smsPermissionGranted -> "Manage"
+                else -> "Grant"
               }
-            },
-            enabled = smsPermissionAvailable,
-          ) {
-            Text(buttonLabel)
-          }
-        },
+      ListItem(
+              headlineContent = { Text("SMS Permission") },
+              supportingContent = {
+                Text(
+                        if (smsPermissionAvailable) {
+                          "Allow the gateway to send SMS from this device."
+                        } else {
+                          "SMS requires a device with telephony hardware."
+                        },
+                )
+              },
+              trailingContent = {
+                Button(
+                        onClick = {
+                          if (!smsPermissionAvailable) return@Button
+                          if (smsPermissionGranted) {
+                            openAppSettings(context)
+                          } else {
+                            smsPermissionLauncher.launch(Manifest.permission.SEND_SMS)
+                          }
+                        },
+                        enabled = smsPermissionAvailable,
+                ) { Text(buttonLabel) }
+              },
       )
     }
 
@@ -629,54 +771,56 @@ fun SettingsSheet(viewModel: MainViewModel) {
     item {
       Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
         ListItem(
-          headlineContent = { Text("Off") },
-          supportingContent = { Text("Disable location sharing.") },
-          trailingContent = {
-            RadioButton(
-              selected = locationMode == LocationMode.Off,
-              onClick = { viewModel.setLocationMode(LocationMode.Off) },
-            )
-          },
+                headlineContent = { Text("Off") },
+                supportingContent = { Text("Disable location sharing.") },
+                trailingContent = {
+                  RadioButton(
+                          selected = locationMode == LocationMode.Off,
+                          onClick = { viewModel.setLocationMode(LocationMode.Off) },
+                  )
+                },
         )
         ListItem(
-          headlineContent = { Text("While Using") },
-          supportingContent = { Text("Only while OpenClaw is open.") },
-          trailingContent = {
-            RadioButton(
-              selected = locationMode == LocationMode.WhileUsing,
-              onClick = { requestLocationPermissions(LocationMode.WhileUsing) },
-            )
-          },
+                headlineContent = { Text("While Using") },
+                supportingContent = { Text("Only while OpenClaw is open.") },
+                trailingContent = {
+                  RadioButton(
+                          selected = locationMode == LocationMode.WhileUsing,
+                          onClick = { requestLocationPermissions(LocationMode.WhileUsing) },
+                  )
+                },
         )
         ListItem(
-          headlineContent = { Text("Always") },
-          supportingContent = { Text("Allow background location (requires system permission).") },
-          trailingContent = {
-            RadioButton(
-              selected = locationMode == LocationMode.Always,
-              onClick = { requestLocationPermissions(LocationMode.Always) },
-            )
-          },
+                headlineContent = { Text("Always") },
+                supportingContent = {
+                  Text("Allow background location (requires system permission).")
+                },
+                trailingContent = {
+                  RadioButton(
+                          selected = locationMode == LocationMode.Always,
+                          onClick = { requestLocationPermissions(LocationMode.Always) },
+                  )
+                },
         )
       }
     }
     item {
       ListItem(
-        headlineContent = { Text("Precise Location") },
-        supportingContent = { Text("Use precise GPS when available.") },
-        trailingContent = {
-          Switch(
-            checked = locationPreciseEnabled,
-            onCheckedChange = ::setPreciseLocationChecked,
-            enabled = locationMode != LocationMode.Off,
-          )
-        },
+              headlineContent = { Text("Precise Location") },
+              supportingContent = { Text("Use precise GPS when available.") },
+              trailingContent = {
+                Switch(
+                        checked = locationPreciseEnabled,
+                        onCheckedChange = ::setPreciseLocationChecked,
+                        enabled = locationMode != LocationMode.Off,
+                )
+              },
       )
     }
     item {
       Text(
-        "Always may require Android Settings to allow background location.",
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+              "Always may require Android Settings to allow background location.",
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
     }
 
@@ -685,10 +829,46 @@ fun SettingsSheet(viewModel: MainViewModel) {
     // Screen
     item { Text("Screen", style = MaterialTheme.typography.titleSmall) }
     item {
+      Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+        ListItem(
+                headlineContent = { Text("System default") },
+                supportingContent = { Text("Match the device theme.") },
+                trailingContent = {
+                  RadioButton(
+                          selected = themeMode == ThemeMode.System,
+                          onClick = { viewModel.setThemeMode(ThemeMode.System) },
+                  )
+                },
+        )
+        ListItem(
+                headlineContent = { Text("Light") },
+                supportingContent = { Text("Use a light theme in OpenClaw.") },
+                trailingContent = {
+                  RadioButton(
+                          selected = themeMode == ThemeMode.Light,
+                          onClick = { viewModel.setThemeMode(ThemeMode.Light) },
+                  )
+                },
+        )
+        ListItem(
+                headlineContent = { Text("Dark") },
+                supportingContent = { Text("Use a dark theme in OpenClaw.") },
+                trailingContent = {
+                  RadioButton(
+                          selected = themeMode == ThemeMode.Dark,
+                          onClick = { viewModel.setThemeMode(ThemeMode.Dark) },
+                  )
+                },
+        )
+      }
+    }
+    item {
       ListItem(
-        headlineContent = { Text("Prevent Sleep") },
-        supportingContent = { Text("Keeps the screen awake while OpenClaw is open.") },
-        trailingContent = { Switch(checked = preventSleep, onCheckedChange = viewModel::setPreventSleep) },
+              headlineContent = { Text("Prevent Sleep") },
+              supportingContent = { Text("Keeps the screen awake while OpenClaw is open.") },
+              trailingContent = {
+                Switch(checked = preventSleep, onCheckedChange = viewModel::setPreventSleep)
+              },
       )
     }
 
@@ -698,14 +878,14 @@ fun SettingsSheet(viewModel: MainViewModel) {
     item { Text("Debug", style = MaterialTheme.typography.titleSmall) }
     item {
       ListItem(
-        headlineContent = { Text("Debug Canvas Status") },
-        supportingContent = { Text("Show status text in the canvas when debug is enabled.") },
-        trailingContent = {
-          Switch(
-            checked = canvasDebugStatusEnabled,
-            onCheckedChange = viewModel::setCanvasDebugStatusEnabled,
-          )
-        },
+              headlineContent = { Text("Debug Canvas Status") },
+              supportingContent = { Text("Show status text in the canvas when debug is enabled.") },
+              trailingContent = {
+                Switch(
+                        checked = canvasDebugStatusEnabled,
+                        onCheckedChange = viewModel::setCanvasDebugStatusEnabled,
+                )
+              },
       )
     }
 
@@ -715,9 +895,9 @@ fun SettingsSheet(viewModel: MainViewModel) {
 
 private fun openAppSettings(context: Context) {
   val intent =
-    Intent(
-      Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-      Uri.fromParts("package", context.packageName, null),
-    )
+          Intent(
+                  Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                  Uri.fromParts("package", context.packageName, null),
+          )
   context.startActivity(intent)
 }

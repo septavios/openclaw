@@ -1,5 +1,6 @@
 package ai.openclaw.android.ui.chat
 
+import android.content.Context
 import android.text.method.LinkMovementMethod
 import android.util.TypedValue
 import android.widget.TextView
@@ -11,11 +12,19 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import android.graphics.drawable.Drawable
+import coil3.SingletonImageLoader
+import coil3.request.ImageRequest
+import coil3.asDrawable
+import io.noties.markwon.AbstractMarkwonPlugin
 import io.noties.markwon.Markwon
+import io.noties.markwon.MarkwonPlugin
 import io.noties.markwon.ext.latex.JLatexMathPlugin
 import io.noties.markwon.ext.strikethrough.StrikethroughPlugin
 import io.noties.markwon.ext.tables.TablePlugin
-import io.noties.markwon.image.coil.CoilImagesPlugin
+import io.noties.markwon.image.AsyncDrawable
+import io.noties.markwon.image.AsyncDrawableLoader
+import io.noties.markwon.image.ImagesPlugin
 import io.noties.markwon.linkify.LinkifyPlugin
 
 @Composable
@@ -38,7 +47,8 @@ fun ChatMarkdown(text: String, textColor: Color) {
             .usePlugin(StrikethroughPlugin.create())
             .usePlugin(TablePlugin.create(context))
             .usePlugin(LinkifyPlugin.create())
-            .usePlugin(CoilImagesPlugin.create(context))
+            // Images disabled temporarily to fix crash
+            // .usePlugin(ImagesPlugin.create(Coil3AsyncDrawableLoader(context)))
             .build()
     }
 

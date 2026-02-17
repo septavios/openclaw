@@ -1,17 +1,25 @@
 package ai.openclaw.android.ui
 
+import ai.openclaw.android.ThemeMode
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 
 @Composable
-fun OpenClawTheme(content: @Composable () -> Unit) {
+fun OpenClawTheme(themeMode: ThemeMode, content: @Composable () -> Unit) {
   val context = LocalContext.current
-  val isDark = isSystemInDarkTheme()
+  val systemDark = isSystemInDarkTheme()
+  val isDark =
+    when (themeMode) {
+      ThemeMode.System -> systemDark
+      ThemeMode.Light -> false
+      ThemeMode.Dark -> true
+    }
   val colorScheme = if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
 
   MaterialTheme(colorScheme = colorScheme, content = content)
@@ -20,9 +28,8 @@ fun OpenClawTheme(content: @Composable () -> Unit) {
 @Composable
 fun overlayContainerColor(): Color {
   val scheme = MaterialTheme.colorScheme
-  val isDark = isSystemInDarkTheme()
+  val isDark = scheme.background.luminance() < 0.5f
   val base = if (isDark) scheme.surfaceContainerLow else scheme.surfaceContainerHigh
-  // Light mode: background stays dark (canvas), so clamp overlays away from pure-white glare.
   return if (isDark) base else base.copy(alpha = 0.88f)
 }
 

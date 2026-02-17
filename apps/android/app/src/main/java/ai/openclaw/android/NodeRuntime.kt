@@ -337,6 +337,7 @@ class NodeRuntime(context: Context) {
   val locationMode: StateFlow<LocationMode> = prefs.locationMode
   val locationPreciseEnabled: StateFlow<Boolean> = prefs.locationPreciseEnabled
   val preventSleep: StateFlow<Boolean> = prefs.preventSleep
+  val themeMode: StateFlow<ThemeMode> = prefs.themeMode
   val wakeWords: StateFlow<List<String>> = prefs.wakeWords
   val voiceWakeMode: StateFlow<VoiceWakeMode> = prefs.voiceWakeMode
   val talkEnabled: StateFlow<Boolean> = prefs.talkEnabled
@@ -492,6 +493,10 @@ class NodeRuntime(context: Context) {
 
   fun setPreventSleep(value: Boolean) {
     prefs.setPreventSleep(value)
+  }
+
+  fun setThemeMode(mode: ThemeMode) {
+    prefs.setThemeMode(mode)
   }
 
   fun setManualEnabled(value: Boolean) {
